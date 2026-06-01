@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+    <!-- Fondo oscuro profundo estilo Vercel / Modo Oscuro Premium -->
+    <rect width="512" height="512" rx="112" fill="#000000"/>
+    
+    <defs>
+        <!-- Degradado Vercel-esco para el triángulo de fondo (Brillo tecnológico) -->
+        <linearGradient id="vercel-glow" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.25" />
+            <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+        </linearGradient>
+    </defs>
+
+    <!-- El icónico triángulo de Vercel (como aura brillante apuntando hacia adelante/arriba) -->
+    <path d="M256 60 L460 400 L52 400 Z" fill="url(#vercel-glow)" />
+
+    <!-- Ilustración Vettorial Minimalista de la Moto -->
+    <g transform="translate(0, 15)">
+        <!-- Rueda Trasera -->
+        <circle cx="150" cy="280" r="50" fill="none" stroke="#ffffff" stroke-width="28" />
+        <circle cx="150" cy="280" r="10" fill="#ffffff" />
+        
+        <!-- Rueda Delantera -->
+        <circle cx="362" cy="280" r="50" fill="none" stroke="#ffffff" stroke-width="28" />
+        <circle cx="362" cy="280" r="10" fill="#ffffff" />
+        
+        <!-- Chasis (Conexión precisa y geométrica) -->
+        <path d="M 150 280 L 210 180 L 310 180 L 362 280" fill="none" stroke="#ffffff" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" />
+        
+        <!-- Cola / Respaldo -->
+        <path d="M 210 180 L 140 180" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" />
+        
+        <!-- Manubrio / Horquilla -->
+        <path d="M 310 180 L 340 120 L 380 120" fill="none" stroke="#ffffff" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" />
+        
+        <!-- Línea dinámica de asfalto / pista (Tracker) -->
+        <path d="M 100 360 L 412 360" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.3" />
+        <path d="M 200 390 L 312 390" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.15" />
+    </g>
+</svg>

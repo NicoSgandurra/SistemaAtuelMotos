@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#1a1535"/>
+  <g stroke="#b8a4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="80" y="80" width="640" height="340" rx="20" stroke-dasharray="8 8" opacity="0.5"/>
+    <path d="M 400 140 L 400 240 M 400 240 L 360 290 M 400 240 L 440 290" stroke-width="4"/>
+    <text x="400" y="340" text-anchor="middle" font-family="Quicksand, sans-serif" font-size="22" fill="#b8a4ff" stroke="none" font-weight="600">TEMPLATE IMAGE</text>
+    <text x="400" y="370" text-anchor="middle" font-family="Nunito, sans-serif" font-size="14" fill="#a89dc4" stroke="none">800 x 500 px (cambiá el nombre y agregá contenido)</text>
+  </g>
+</svg>
