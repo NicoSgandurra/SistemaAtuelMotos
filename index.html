@@ -110,7 +110,7 @@
     <section id="proveedores" class="section hidden">
       <h1 class="section-title">📦 Estado de proveedores</h1>
       <p class="section-subtitle">Monitoreá cuándo se actualizaron las listas de precios y stock de cada proveedor.</p>
-      <div class="cards-grid" id="providersContainer"></div>
+      <div id="providersContainer"></div>
     </section>
 
     <section id="tutoriales" class="section hidden">
@@ -180,11 +180,11 @@
 
       <div class="card" style="margin-bottom: 20px;">
         <h3 style="margin-bottom: 4px; font-size: 1.05rem;">Configuración externa (compartida)</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">El archivo <code>config.js</code> define los datos compartidos (atajos, proveedores, avisos, checklist, tutoriales). Editalo con cualquier editor de texto y recargá para aplicar los cambios a todos los usuarios.</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">El archivo <code>config.js</code> define los datos compartidos (atajos, proveedores, avisos, checklist, tutoriales). El botón <strong>Exportar config.js</strong> genera un archivo con los datos actuales (incluyendo lo editado desde la web) listo para pegar en el repositorio.</p>
         <div class="btn-group">
           <button class="btn btn-accent" id="btnReloadConfig">🔄 Recargar config.js</button>
           <button class="btn btn-secondary" id="btnViewConfig">👁 Ver config actual</button>
-          <button class="btn btn-secondary" id="btnDownloadConfig">📥 Descargar plantilla</button>
+          <button class="btn btn-secondary" id="btnDownloadConfig">📥 Exportar config.js</button>
         </div>
       </div>
 
@@ -209,23 +209,9 @@
       </div>
 
       <div class="card">
-        <h3 style="margin-bottom: 4px; font-size: 1.05rem;">Tutoriales</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">Activá el modo edición para crear tutoriales desde la web. Cada tutorial puede tener varios temas y partes.</p>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-title">Modo edición</div>
-            <div class="setting-desc">Muestra botones para editar o eliminar tutoriales directamente desde las tarjetas.</div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="editSwitch">
-            <span class="switch-slider"></span>
-          </label>
-        </div>
-        <div class="btn-group">
-          <button class="btn btn-accent" id="btnNewTutorial">+ Nuevo tutorial</button>
-          <button class="btn btn-secondary" id="btnExportAll">📋 Exportar todos los tutoriales</button>
-          <button class="btn btn-danger" id="btnResetTutorials">↺ Restablecer de fábrica</button>
-        </div>
+        <h3 style="margin-bottom: 4px; font-size: 1.05rem;">Secciones visibles</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">Activá o desactivá secciones temporalmente. Las que ocultes desaparecen del menú lateral y la barra inferior hasta que las vuelvas a activar.</p>
+        <div id="sectionsToggles"></div>
       </div>
     </section>
 

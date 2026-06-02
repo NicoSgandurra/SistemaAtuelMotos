@@ -14,7 +14,7 @@
   localStorage.setItem(KEY, now.toString());
 })();
 
-const SHORTCUTS = (window.ATUEL_CONFIG && window.ATUEL_CONFIG.shortcuts) || [
+const DEFAULT_SHORTCUTS = (window.ATUEL_CONFIG && window.ATUEL_CONFIG.shortcuts) || [
   { key: 'F1', title: 'Ayuda', desc: 'Abre la ventana de ayuda del sistema', category: 'general' },
   { key: 'F2', title: 'Buscar Producto', desc: 'Abre el buscador de productos', category: 'productos' },
   { key: 'F3', title: 'Nuevo Cliente', desc: 'Abre el formulario de alta de cliente', category: 'clientes' },
@@ -31,7 +31,7 @@ const SHORTCUTS = (window.ATUEL_CONFIG && window.ATUEL_CONFIG.shortcuts) || [
   { key: 'Esc', title: 'Salir / Cancelar', desc: 'Cierra ventanas o cancela la operación', category: 'general' },
 ];
 
-const PROVIDERS = (window.ATUEL_CONFIG && window.ATUEL_CONFIG.providers) || [
+const DEFAULT_PROVIDERS = (window.ATUEL_CONFIG && window.ATUEL_CONFIG.providers) || [
   { name: 'Servicom', status: 'ready', daysAgo: 2 },
   { name: 'Honda', status: 'ready', daysAgo: 5 },
   { name: 'Yamaha', status: 'partial', daysAgo: 12 },
@@ -246,7 +246,7 @@ function renderSectionsToggles() {
 function equalizeCardHeights(containerSelector) {
   const container = document.querySelector(containerSelector);
   if (!container) return;
-  const cards = Array.from(container.children);
+  const cards = Array.from(container.children).filter(c => !c.classList.contains('section-header-actions') && !c.classList.contains('cards-grid') && !c.classList.contains('topic-chips'));
   if (cards.length === 0) return;
   for (const card of cards) {
     card.style.minHeight = '';
@@ -263,11 +263,25 @@ function equalizeCardHeights(containerSelector) {
   }
 }
 
+const _equalizeObservers = new WeakMap();
+function setupEqualizeObserver(containerSelector) {
+  const container = document.querySelector(containerSelector);
+  if (!container) return;
+  if (_equalizeObservers.has(container)) return;
+  const ro = new ResizeObserver(() => {
+    requestAnimationFrame(() => equalizeCardHeights(containerSelector));
+  });
+  ro.observe(container);
+  _equalizeObservers.set(container, ro);
+}
+
 function reloadExternalConfig(preserveLocal = false) {
   if (!preserveLocal) {
     localStorage.removeItem('atuel_tutorials');
     localStorage.removeItem('atuel_avisos');
     localStorage.removeItem('atuel_custom_checklist');
+    localStorage.removeItem('atuel_shortcuts');
+    localStorage.removeItem('atuel_providers');
   }
   const oldScript = document.querySelector('script[data-atuel-config]');
   if (oldScript) oldScript.remove();
@@ -288,17 +302,12 @@ function reloadExternalConfig(preserveLocal = false) {
 function showConfigModal() {
   const modal = document.getElementById('modal');
   const content = document.getElementById('modalContent');
-  const cfg = window.ATUEL_CONFIG || {};
   const loadedAt = localStorage.getItem('atuel_config_loaded_at') || 'nunca';
   const source = window.ATUEL_CONFIG ? 'config.js ✓' : '❌ NO CARGADO (usando defaults)';
 
-  const data = {
-    shortcuts: cfg.shortcuts || SHORTCUTS,
-    providers: cfg.providers || PROVIDERS,
-    avisos: cfg.avisos || DEFAULT_AVISOS,
-    checklist: cfg.checklist || DEFAULT_CHECKLIST,
-    tutorials: cfg.tutorials || DEFAULT_TUTORIALS,
-  };
+  const data = buildLiveConfigData();
+  const fullText = buildConfigFileText();
+  const previewText = fullText.length > 700 ? fullText.substring(0, 700) + '\n...' : fullText;
 
   const summary = {
     'Atajos': (data.shortcuts || []).length,
@@ -318,6 +327,7 @@ function showConfigModal() {
         <div>
           <div style="font-weight: 600; font-size: 0.95rem;">Fuente: <span class="summary-tag ${window.ATUEL_CONFIG ? 'success' : 'danger'}">${source}</span></div>
           <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px;">Última recarga: ${loadedAt}</div>
+          <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">Se exportan los datos actuales de la página (incluyendo lo editado desde la web).</div>
         </div>
       </div>
     </div>
@@ -329,15 +339,27 @@ function showConfigModal() {
         </div>
       `).join('')}
     </div>
-    <h4 style="margin-bottom: 8px; font-size: 0.9rem; color: var(--text-secondary);">Vista JSON (primeros 500 chars)</h4>
-    <div class="code-block" style="max-height: 200px;">${escapeHtml(JSON.stringify(data, null, 2).substring(0, 500))}${JSON.stringify(data, null, 2).length > 500 ? '\n...' : ''}</div>
+    <h4 style="margin-bottom: 8px; font-size: 0.9rem; color: var(--text-secondary);">Vista previa (primeros 700 caracteres)</h4>
+    <div class="code-block" style="max-height: 240px;">${escapeHtml(previewText)}</div>
     <div class="btn-group">
-      <button class="btn btn-accent" onclick="copyConfigJson()">📋 Copiar JSON completo</button>
+      <button class="btn btn-accent" onclick="copyConfigJson()">📋 Copiar config.js completo</button>
+      <button class="btn btn-secondary" onclick="downloadCurrentConfig()">📥 Descargar archivo</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
     </div>
   `;
   modal.classList.remove('hidden');
-  window.__fullConfigJson = JSON.stringify(data, null, 2);
+  window.__fullConfigJson = fullText;
+}
+
+function downloadCurrentConfig() {
+  const code = buildConfigFileText();
+  const blob = new Blob([code], { type: 'application/javascript;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'config.js';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function copyConfigJson() {
@@ -421,6 +443,22 @@ function saveTutorials(tutorials) {
   STORAGE.set('atuel_tutorials', tutorials);
 }
 
+function getShortcuts() {
+  return STORAGE.get('atuel_shortcuts', null) || DEFAULT_SHORTCUTS;
+}
+
+function saveShortcuts(shortcuts) {
+  STORAGE.set('atuel_shortcuts', shortcuts);
+}
+
+function getProviders() {
+  return STORAGE.get('atuel_providers', null) || DEFAULT_PROVIDERS;
+}
+
+function saveProviders(providers) {
+  STORAGE.set('atuel_providers', providers);
+}
+
 function getAvisos() {
   return STORAGE.get('atuel_avisos', DEFAULT_AVISOS);
 }
@@ -458,8 +496,10 @@ function renderSummary() {
   const checklist = getCurrentChecklist();
   const state = getChecklistState();
   const doneCheck = checklist.filter(c => state[c.id]).length;
-  const readyProviders = PROVIDERS.filter(p => p.status === 'ready').length;
-  const staleProviders = PROVIDERS.filter(p => p.daysAgo > 15).length;
+  const providers = getProviders();
+  const readyProviders = providers.filter(p => p.status === 'ready').length;
+  const staleProviders = providers.filter(p => p.status !== 'upcoming' && getProviderDaysAgo(p) > STALE_THRESHOLD_DAYS).length;
+  const upcomingProviders = providers.filter(p => p.status === 'upcoming').length;
   const today = new Date();
 
   function fmtDate(d) {
@@ -475,18 +515,30 @@ function renderSummary() {
   const cards = [];
 
   if (isSectionEnabled('proveedores')) {
-    const providerTags = PROVIDERS.map(p => {
-      const cls = p.status === 'ready' ? 'success' : p.status === 'partial' ? 'warning' : 'danger';
-      const statusText = p.status === 'ready' ? '✓' : p.status === 'partial' ? '◐' : '✕';
-      const dateStr = fmtDate(dateFromDaysAgo(p.daysAgo));
-      return `<span class="summary-tag ${cls}">${statusText} ${escapeHtml(p.name)} · ${dateStr}</span>`;
+    const providerTags = providers.map(p => {
+      const meta = PROVIDER_STATUS_MAP[p.status] || PROVIDER_STATUS_MAP['ready'];
+      const cls = p.status === 'ready' ? 'success'
+                : p.status === 'partial' ? 'warning'
+                : p.status === 'upcoming' ? 'neutral'
+                : 'danger';
+      if (p.status === 'upcoming') {
+        const pr = getProviderPriority(p);
+        const prText = pr === Number.MAX_SAFE_INTEGER ? '—' : `#${pr}`;
+        return `<span class="summary-tag ${cls}">${meta.icon} ${escapeHtml(p.name)} · ${prText}</span>`;
+      }
+      const dateStr = fmtDate(dateFromDaysAgo(getProviderDaysAgo(p)));
+      return `<span class="summary-tag ${cls}">${meta.icon} ${escapeHtml(p.name)} · ${dateStr}</span>`;
     }).join('');
+    const totalActive = providers.length - upcomingProviders;
+    const summaryMsg = staleProviders > 0
+      ? `${staleProviders} con listas desactualizadas (+${STALE_THRESHOLD_DAYS} días)`
+      : (upcomingProviders > 0 ? `Todas las listas actualizadas · ${upcomingProviders} próximos a importar` : 'Todas las listas actualizadas');
     cards.push(`
       <div class="summary-card-h ${staleProviders > 0 ? 'warning' : 'success'}" onclick="navigate('proveedores')">
         <div class="summary-card-h-icon">📦</div>
         <div class="summary-card-h-body">
-          <div class="summary-card-h-title">Proveedores <span class="summary-tag ${staleProviders > 0 ? 'warning' : 'success'}">${readyProviders}/${PROVIDERS.length} listos</span></div>
-          <div class="summary-card-h-value">${staleProviders > 0 ? `${staleProviders} con listas desactualizadas (+15 días)` : 'Todas las listas actualizadas'}</div>
+          <div class="summary-card-h-title">Proveedores <span class="summary-tag ${staleProviders > 0 ? 'warning' : 'success'}">${readyProviders}/${totalActive} listos</span></div>
+          <div class="summary-card-h-value">${summaryMsg}</div>
           <div class="summary-card-h-details">${providerTags}</div>
         </div>
         <div class="summary-card-h-arrow">→</div>
@@ -550,14 +602,15 @@ function renderSummary() {
   }
 
   if (isSectionEnabled('atajos')) {
-    const categoryCount = new Set(SHORTCUTS.map(s => s.category)).size;
+    const shortcuts = getShortcuts();
+    const categoryCount = new Set(shortcuts.map(s => s.category)).size;
     cards.push(`
       <div class="summary-card-h" onclick="navigate('atajos')">
         <div class="summary-card-h-icon">⌨️</div>
         <div class="summary-card-h-body">
-          <div class="summary-card-h-title">Atajos del sistema <span class="summary-tag neutral">${SHORTCUTS.length} atajos</span></div>
+          <div class="summary-card-h-title">Atajos del sistema <span class="summary-tag neutral">${shortcuts.length} atajos</span></div>
           <div class="summary-card-h-value">Accesos rápidos de teclado agrupados en ${categoryCount} categorías: ventas, stock, clientes y más.</div>
-          <div class="summary-card-h-details">${[...new Set(SHORTCUTS.map(s => s.category))].slice(0, 4).map(c => `<span class="summary-tag neutral">${c}</span>`).join('')}</div>
+          <div class="summary-card-h-details">${[...new Set(shortcuts.map(s => s.category))].slice(0, 4).map(c => `<span class="summary-tag neutral">${c}</span>`).join('')}</div>
         </div>
         <div class="summary-card-h-arrow">→</div>
       </div>
@@ -571,92 +624,331 @@ function renderShortcuts() {
   const c = document.getElementById('shortcutsContainer');
   if (!c) return;
 
-  const categories = [...new Set(SHORTCUTS.map(s => s.category))];
+  const shortcuts = getShortcuts();
+  const categories = [...new Set(shortcuts.map(s => s.category))];
+  const edit = editMode;
+  const footer = `
+    <div class="section-header-actions">
+      ${edit ? `<button class="btn btn-accent btn-sm" onclick="openShortcutEditor()">+ Agregar atajo</button>` : ''}
+    </div>
+  `;
   c.innerHTML = categories.map(cat => {
-    const items = SHORTCUTS.filter(s => s.category === cat);
     return `
       <h3 style="margin: 20px 0 12px; font-size: 1.05rem; color: var(--text-secondary); text-transform: capitalize;">${cat}</h3>
       <div class="cards-grid">
-        ${items.map(s => `
-          <div class="shortcut-card">
-            <div class="shortcut-key">${s.key}</div>
+        ${shortcuts.map((s, idx) => s.category === cat ? `
+          <div class="shortcut-card ${edit ? 'editable' : ''}">
+            ${edit ? `
+              <button class="card-edit-btn" onclick="event.stopPropagation(); openShortcutEditor(${idx})" title="Editar">✏️</button>
+              <button class="card-delete-btn" onclick="event.stopPropagation(); deleteShortcut(${idx})" title="Eliminar">🗑</button>
+            ` : ''}
+            <div class="shortcut-key">${escapeHtml(s.key)}</div>
             <div class="shortcut-info">
-              <div class="shortcut-title">${s.title}</div>
-              <div class="shortcut-desc">${s.desc}</div>
+              <div class="shortcut-title">${escapeHtml(s.title)}</div>
+              <div class="shortcut-desc">${escapeHtml(s.desc)}</div>
             </div>
-            <span class="shortcut-category">${s.category}</span>
           </div>
-        `).join('')}
+        ` : '').join('')}
       </div>
     `;
-  }).join('');
+  }).join('') + footer;
+}
+
+const STALE_THRESHOLD_DAYS = 14;
+
+function todayISO() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function daysAgoToISO(days) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (parseInt(days) || 0));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isoToDaysAgo(iso) {
+  if (!iso) return 0;
+  const parts = String(iso).split('-').map(Number);
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return 0;
+  const [y, m, d] = parts;
+  const date = new Date(y, m - 1, d);
+  date.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((today - date) / 86400000));
+}
+
+function getProviderDaysAgo(p) {
+  if (p && p.lastUpdate) return isoToDaysAgo(p.lastUpdate);
+  return Math.max(0, parseInt(p && p.daysAgo) || 0);
+}
+
+function getProviderLastUpdate(p) {
+  if (p && p.lastUpdate) return p.lastUpdate;
+  return daysAgoToISO((p && p.daysAgo) || 0);
+}
+
+function fmtDateISO(iso) {
+  if (!iso) return '';
+  const parts = String(iso).split('-').map(Number);
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return '';
+  const [y, m, d] = parts;
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
 }
 
 function indicatorColor(days) {
-  if (days < 7) return 'green';
-  if (days < 15) return 'yellow';
-  if (days < 30) return 'orange';
+  if (days < 15) return 'green';
+  if (days < 30) return 'yellow';
   return 'red';
 }
 
 function indicatorLabel(days) {
-  if (days < 7) return 'OK';
-  if (days < 15) return '7d';
-  if (days < 30) return '15d';
-  return '30d+';
+  if (days >= 30) return '30d+';
+  return `${days}d`;
 }
 
 function indicatorPercent(days) {
-  return Math.min(days / 30, 1);
+  if (days >= 30) return 1;
+  const cycle = 15;
+  const within = days < 15 ? days : days - 15;
+  return Math.max(0, Math.min(1, 1 - within / cycle));
+}
+
+const PROVIDER_STATUS_MAP = {
+  'ready':    { label: 'Ready',           cls: 'ready',    icon: '✓', order: 0 },
+  'partial':  { label: 'Parcial',         cls: 'partial',  icon: '◐', order: 1 },
+  'upcoming': { label: 'Próximos',        cls: 'upcoming', icon: '⏳', order: 2 },
+  'not-impl': { label: 'No Implementada', cls: 'not-impl', icon: '✕', order: 3 }
+};
+
+const PROVIDER_GROUP_ORDER = ['ready', 'partial', 'upcoming', 'not-impl'];
+
+function getProviderPriority(p) {
+  const v = parseInt(p && p.priority);
+  return Number.isFinite(v) && v > 0 ? v : Number.MAX_SAFE_INTEGER;
+}
+
+function getProviderSortPrefs() {
+  return STORAGE.get('atuel_provider_sort', { sort: 'default', group: false });
+}
+
+function setProviderSortPrefs(prefs) {
+  STORAGE.set('atuel_provider_sort', prefs);
+}
+
+function setProviderSort(sort) {
+  const prefs = getProviderSortPrefs();
+  prefs.sort = sort;
+  setProviderSortPrefs(prefs);
+  renderProviders();
+}
+
+function setProviderGroup(group) {
+  const prefs = getProviderSortPrefs();
+  prefs.group = !!group;
+  setProviderSortPrefs(prefs);
+  renderProviders();
+}
+
+function sortProviders(list, sortMode) {
+  const arr = list.map((p, originalIdx) => ({ p, originalIdx }));
+  const cmpName = (a, b) => a.p.name.localeCompare(b.p.name, 'es', { sensitivity: 'base' });
+  const cmpStatus = (a, b) => (PROVIDER_STATUS_MAP[a.p.status]?.order ?? 99) - (PROVIDER_STATUS_MAP[b.p.status]?.order ?? 99);
+  const cmpDaysAsc  = (a, b) => getProviderDaysAgo(a.p) - getProviderDaysAgo(b.p);
+  const cmpDaysDesc = (a, b) => getProviderDaysAgo(b.p) - getProviderDaysAgo(a.p);
+  const cmpPriority = (a, b) => getProviderPriority(a.p) - getProviderPriority(b.p);
+
+  const upcomingFirst = (a, b) => {
+    const au = a.p.status === 'upcoming' ? 1 : 0;
+    const bu = b.p.status === 'upcoming' ? 1 : 0;
+    return au - bu;
+  };
+
+  switch (sortMode) {
+    case 'status':
+      arr.sort((a, b) => cmpStatus(a, b) || cmpPriority(a, b) || cmpDaysAsc(a, b) || cmpName(a, b));
+      break;
+    case 'recent':
+      arr.sort((a, b) => upcomingFirst(a, b) || cmpDaysAsc(a, b) || cmpName(a, b));
+      break;
+    case 'old':
+      arr.sort((a, b) => upcomingFirst(a, b) || cmpDaysDesc(a, b) || cmpName(a, b));
+      break;
+    case 'name':
+      arr.sort(cmpName);
+      break;
+    case 'priority':
+      arr.sort((a, b) => {
+        const au = a.p.status === 'upcoming' ? 0 : 1;
+        const bu = b.p.status === 'upcoming' ? 0 : 1;
+        return (au - bu) || cmpPriority(a, b) || cmpName(a, b);
+      });
+      break;
+    default:
+      // keep original insertion order
+      break;
+  }
+  return arr;
+}
+
+function renderProviderControls() {
+  const prefs = getProviderSortPrefs();
+  return `
+    <div class="providers-controls">
+      <div class="pc-field">
+        <span class="pc-label">Ordenar:</span>
+        <select class="pc-select" onchange="setProviderSort(this.value)">
+          <option value="default" ${prefs.sort === 'default' ? 'selected' : ''}>Por defecto</option>
+          <option value="status" ${prefs.sort === 'status' ? 'selected' : ''}>Estado (Ready → No impl.)</option>
+          <option value="recent" ${prefs.sort === 'recent' ? 'selected' : ''}>Más recientes primero</option>
+          <option value="old" ${prefs.sort === 'old' ? 'selected' : ''}>Más antiguos primero</option>
+          <option value="priority" ${prefs.sort === 'priority' ? 'selected' : ''}>Prioridad de importación</option>
+          <option value="name" ${prefs.sort === 'name' ? 'selected' : ''}>Nombre (A → Z)</option>
+        </select>
+      </div>
+      <label class="pc-check">
+        <input type="checkbox" ${prefs.group ? 'checked' : ''} onchange="setProviderGroup(this.checked)">
+        <span>Agrupar por estado</span>
+      </label>
+    </div>
+  `;
+}
+
+function renderProviderCard(p, originalIdx, edit) {
+  const s = PROVIDER_STATUS_MAP[p.status] || PROVIDER_STATUS_MAP['ready'];
+  const initial = p.name.charAt(0).toUpperCase();
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const isUpcoming = p.status === 'upcoming';
+
+  let metaHtml = '';
+  let ringHtml = '';
+  let title = '';
+
+  if (isUpcoming) {
+    const priority = getProviderPriority(p);
+    const priorityText = priority === Number.MAX_SAFE_INTEGER ? '—' : `#${priority}`;
+    metaHtml = `<span class="provider-date">Prioridad ${priorityText}</span>`;
+    const offset = 0;
+    ringHtml = `
+      <div class="indicator-ring" title="Próximo a importar · prioridad ${priorityText}">
+        <svg width="48" height="48">
+          <circle class="ring-bg accent" cx="24" cy="24" r="${radius}"></circle>
+          <circle class="ring-fg accent" cx="24" cy="24" r="${radius}"
+                  style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};"></circle>
+        </svg>
+        <div class="indicator-label">${priorityText}</div>
+      </div>
+    `;
+    title = `Próximo a importar · prioridad ${priorityText}`;
+  } else {
+    const daysAgo = getProviderDaysAgo(p);
+    const lastUpdate = getProviderLastUpdate(p);
+    const ringColor = indicatorColor(daysAgo);
+    const pct = indicatorPercent(daysAgo);
+    const offset = circumference * (1 - pct);
+    const relText = daysAgo === 0 ? 'hoy' : daysAgo === 1 ? 'hace 1 día' : `hace ${daysAgo} días`;
+    metaHtml = `<span class="provider-date">${fmtDateISO(lastUpdate)} · ${relText}</span>`;
+    ringHtml = `
+      <div class="indicator-ring" title="${daysAgo} días desde la última actualización (${fmtDateISO(lastUpdate)})">
+        <svg width="48" height="48">
+          <circle class="ring-bg ${ringColor}" cx="24" cy="24" r="${radius}"></circle>
+          <circle class="ring-fg ${ringColor}" cx="24" cy="24" r="${radius}"
+                  style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};"></circle>
+        </svg>
+        <div class="indicator-label">${indicatorLabel(daysAgo)}</div>
+      </div>
+    `;
+    title = `${daysAgo} días desde la última actualización (${fmtDateISO(lastUpdate)})`;
+  }
+
+  return `
+    <div class="provider-card ${edit ? 'editable' : ''}">
+      ${edit ? `
+        <button class="card-edit-btn" onclick="event.stopPropagation(); openProviderEditor(${originalIdx})" title="Editar">✏️</button>
+        <button class="card-delete-btn" onclick="event.stopPropagation(); deleteProvider(${originalIdx})" title="Eliminar">🗑</button>
+      ` : ''}
+      <div class="provider-info">
+        <div class="provider-avatar">${initial}</div>
+        <div style="min-width: 0;">
+          <div class="provider-name">${escapeHtml(p.name)}</div>
+          <div class="provider-meta">
+            <span class="status-badge ${s.cls}">
+              <span class="status-dot"></span>
+              ${s.label}
+            </span>
+            ${metaHtml}
+          </div>
+        </div>
+      </div>
+      ${ringHtml}
+    </div>
+  `;
 }
 
 function renderProviders() {
   const c = document.getElementById('providersContainer');
   if (!c) return;
 
-  c.innerHTML = PROVIDERS.map(p => {
-    const statusMap = {
-      'ready': { label: 'Ready', cls: 'ready' },
-      'partial': { label: 'Parcial', cls: 'partial' },
-      'not-impl': { label: 'No Implementada', cls: 'not-impl' }
-    };
-    const s = statusMap[p.status];
-    const initial = p.name.charAt(0).toUpperCase();
-    const ringColor = indicatorColor(p.daysAgo);
-    const radius = 16;
-    const circumference = 2 * Math.PI * radius;
-    const pct = indicatorPercent(p.daysAgo);
-    const offset = circumference * (1 - pct);
-    const dateText = p.daysAgo === 0 ? 'hoy' :
-                     p.daysAgo === 1 ? 'hace 1 día' :
-                     `hace ${p.daysAgo} días`;
+  const providers = getProviders();
+  const edit = editMode;
+  const prefs = getProviderSortPrefs();
+  const sorted = sortProviders(providers, prefs.sort);
 
-    return `
-      <div class="provider-card">
-        <div class="provider-info">
-          <div class="provider-avatar">${initial}</div>
-          <div style="min-width: 0;">
-            <div class="provider-name">${p.name}</div>
-            <div class="provider-meta">
-              <span class="status-badge ${s.cls}">
-                <span class="status-dot"></span>
-                ${s.label}
-              </span>
-              <span class="provider-date">${dateText}</span>
-            </div>
+  const footer = `
+    <div class="section-header-actions">
+      ${edit ? `<button class="btn btn-accent btn-sm" onclick="openProviderEditor()">+ Agregar proveedor</button>` : ''}
+    </div>
+  `;
+
+  let body = '';
+
+  if (prefs.group) {
+    const groups = {};
+    sorted.forEach(item => {
+      const key = item.p.status || 'ready';
+      (groups[key] = groups[key] || []).push(item);
+    });
+    PROVIDER_GROUP_ORDER.forEach(key => {
+      const items = groups[key];
+      if (!items || !items.length) return;
+      const meta = PROVIDER_STATUS_MAP[key];
+      if (key === 'upcoming') {
+        items.sort((a, b) => getProviderPriority(a.p) - getProviderPriority(b.p) || a.p.name.localeCompare(b.p.name, 'es', { sensitivity: 'base' }));
+      }
+      body += `
+        <div class="providers-group">
+          <div class="providers-group-title">
+            <span>${meta.icon} ${meta.label}</span>
+            <span class="count">${items.length} ${items.length === 1 ? 'proveedor' : 'proveedores'}</span>
+          </div>
+          <div class="cards-grid">
+            ${items.map(it => renderProviderCard(it.p, it.originalIdx, edit)).join('')}
           </div>
         </div>
-        <div class="indicator-ring" title="${p.daysAgo} días desde la última actualización">
-          <svg width="48" height="48">
-            <circle class="ring-bg" cx="24" cy="24" r="${radius}"></circle>
-            <circle class="ring-fg ${ringColor}" cx="24" cy="24" r="${radius}"
-                    style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};"></circle>
-          </svg>
-          <div class="indicator-label">${indicatorLabel(p.daysAgo)}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    });
+  } else {
+    body = `<div class="cards-grid">${sorted.map(it => renderProviderCard(it.p, it.originalIdx, edit)).join('')}</div>`;
+  }
+
+  c.innerHTML = renderProviderControls() + body + footer;
+
+  requestAnimationFrame(() => {
+    document.querySelectorAll('#providersContainer .cards-grid').forEach((grid, i) => {
+      grid.dataset.equalize = `providers-grid-${i}`;
+      equalizeCardHeights(`#providersContainer .cards-grid[data-equalize="providers-grid-${i}"]`);
+    });
+  });
 }
 
 function renderEditBanner() {
@@ -665,13 +957,24 @@ function renderEditBanner() {
   if (editMode) {
     c.innerHTML = `
       <div class="edit-banner">
-        <span>✏️ Modo edición activo. Modificá o eliminá tutoriales desde sus tarjetas.</span>
-        <button class="btn btn-accent" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openTutorialEditor()">+ Nuevo tutorial</button>
+        <span>✏️ <strong>Modo edición activo.</strong> Editá o eliminá items desde sus tarjetas. Usá los botones "+ Agregar" de cada sección.</span>
+        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openTutorialEditor()">+ Nuevo tutorial</button>
       </div>
     `;
   } else {
     c.innerHTML = '';
   }
+}
+
+function renderAllEditableSections() {
+  renderShortcuts();
+  renderProviders();
+  renderTutorials();
+  renderEditBanner();
+  renderTopicChips();
+  renderAvisos();
+  renderChecklist();
+  renderSummary();
 }
 
 function renderTopicChips() {
@@ -697,9 +1000,15 @@ function renderTutorials() {
   if (!c) return;
   const tutorials = getTutorials();
   const filtered = currentTopicFilter === 'all' ? tutorials : tutorials.filter(t => t.topic === currentTopicFilter);
+  const edit = editMode;
+  const footer = `
+    <div class="section-header-actions">
+      ${edit ? `<button class="btn btn-accent btn-sm" onclick="openTutorialEditor()">+ Agregar tutorial</button>` : ''}
+    </div>
+  `;
 
   if (filtered.length === 0) {
-    c.innerHTML = `<div class="card" style="text-align: center; padding: 40px; color: var(--text-muted);">No hay tutoriales en este tema todavía.</div>`;
+    c.innerHTML = `<div class="card" style="text-align: center; padding: 40px; color: var(--text-muted);">No hay tutoriales en este tema todavía.</div>` + footer;
     return;
   }
 
@@ -716,7 +1025,9 @@ function renderTutorials() {
         <button class="tutorial-btn" onclick="openTutorialFocus('${t.id}')">Modo enfoque</button>
       </div>
     </div>
-  `).join('');
+  `).join('') + footer;
+
+  requestAnimationFrame(() => equalizeCardHeights('#tutorialsContainer'));
 }
 
 function openTutorial(id) {
@@ -726,6 +1037,9 @@ function openTutorial(id) {
   const modal = document.getElementById('modal');
   const content = document.getElementById('modalContent');
   let currentPart = 0;
+
+  modal.classList.remove('modal-focus');
+  modal.classList.add('modal-tutorial');
 
   function render() {
     const part = t.parts[currentPart];
@@ -737,9 +1051,11 @@ function openTutorial(id) {
         </div>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
-      <div class="tutorial-content">
-        <h3>Parte ${currentPart + 1} de ${t.parts.length}: ${part.title}</h3>
-        ${part.content}
+      <div class="tutorial-body">
+        <div class="tutorial-content">
+          <h3>Parte ${currentPart + 1} de ${t.parts.length}: ${part.title}</h3>
+          ${part.content}
+        </div>
       </div>
       <div class="tutorial-nav">
         <button class="btn btn-secondary" onclick="window.__navPart(${currentPart - 1})" ${currentPart === 0 ? 'disabled' : ''}>← Anterior</button>
@@ -776,9 +1092,9 @@ function openTutorialFocus(id) {
       </div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div class="focus-layout">
-      <aside class="focus-toc">
-        <div class="focus-toc-sticky">
+    <div class="focus-content">
+      <div class="focus-layout">
+        <aside class="focus-toc">
           <h4 class="focus-toc-title">Contenido</h4>
           <nav class="focus-toc-nav">
             ${t.parts.map((p, i) => `
@@ -788,23 +1104,23 @@ function openTutorialFocus(id) {
               </a>
             `).join('')}
           </nav>
+        </aside>
+        <div class="focus-sections">
+          ${t.parts.map((p, i) => `
+            <article id="focus-part-${i}" class="focus-section">
+              <div class="focus-section-header">
+                <span class="focus-section-num">${i + 1}</span>
+                <h3 class="focus-section-title">${escapeHtml(p.title)}</h3>
+              </div>
+              <div class="tutorial-content">${p.content}</div>
+            </article>
+          `).join('')}
         </div>
-      </aside>
-      <div class="focus-content">
-        ${t.parts.map((p, i) => `
-          <article id="focus-part-${i}" class="focus-section">
-            <div class="focus-section-header">
-              <span class="focus-section-num">${i + 1}</span>
-              <h3 class="focus-section-title">${escapeHtml(p.title)}</h3>
-            </div>
-            <div class="tutorial-content">${p.content}</div>
-          </article>
-        `).join('')}
       </div>
     </div>
   `;
 
-  modal.classList.remove('hidden');
+  modal.classList.remove('hidden', 'modal-tutorial');
   modal.classList.add('modal-focus');
 
   const tocLinks = content.querySelectorAll('.focus-toc-link');
@@ -833,7 +1149,9 @@ function openTutorialFocus(id) {
 }
 
 function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
+  const modal = document.getElementById('modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('modal-focus', 'modal-tutorial');
   currentEditingTutorial = null;
 }
 
@@ -841,9 +1159,15 @@ function renderAvisos() {
   const c = document.getElementById('avisosContainer');
   if (!c) return;
   const avisos = getAvisos().sort((a, b) => b.date.localeCompare(a.date));
+  const edit = editMode;
+  const footer = `
+    <div class="section-header-actions">
+      ${edit ? `<button class="btn btn-accent btn-sm" onclick="openAvisoEditor()">+ Agregar aviso</button>` : ''}
+    </div>
+  `;
 
   if (avisos.length === 0) {
-    c.innerHTML = `<div class="card" style="text-align: center; padding: 40px; color: var(--text-muted);">No hay avisos. ¡Todo tranquilo! 🎉</div>`;
+    c.innerHTML = `<div class="card" style="text-align: center; padding: 40px; color: var(--text-muted);">No hay avisos. ¡Todo tranquilo! 🎉</div>` + footer;
     return;
   }
 
@@ -851,7 +1175,11 @@ function renderAvisos() {
     const dateObj = new Date(a.date + 'T00:00:00');
     const date = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
     return `
-      <div class="aviso-card priority-${a.priority}">
+      <div class="aviso-card priority-${a.priority} ${edit ? 'editable' : ''}">
+        ${edit ? `
+          <button class="card-edit-btn" onclick="event.stopPropagation(); openAvisoEditor(getAvisos().find(x => x.id === '${a.id}'))" title="Editar">✏️</button>
+          <button class="card-delete-btn" onclick="event.stopPropagation(); deleteAviso('${a.id}')" title="Eliminar">🗑</button>
+        ` : ''}
         <div class="aviso-header">
           <div class="aviso-title">${escapeHtml(a.title)}</div>
           <div class="aviso-date">${date}</div>
@@ -859,7 +1187,7 @@ function renderAvisos() {
         <div class="aviso-body">${escapeHtml(a.body)}</div>
       </div>
     `;
-  }).join('');
+  }).join('') + footer;
 }
 
 function openAvisoEditor(existing = null) {
@@ -929,19 +1257,299 @@ function deleteAviso(id) {
   renderSummary();
 }
 
+function openShortcutEditor(idx = null) {
+  const modal = document.getElementById('modal');
+  const content = document.getElementById('modalContent');
+  const shortcuts = getShortcuts();
+  const data = idx !== null ? shortcuts[idx] : null;
+  const current = data || { key: '', title: '', desc: '', category: 'general' };
+
+  const allCategories = [...new Set([...shortcuts.map(s => s.category), 'general', 'productos', 'clientes', 'ventas', 'proveedores'])];
+
+  content.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${data ? '✏️ Editar' : '+ Nuevo'} atajo</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tecla / combinación</label>
+      <input class="form-input" id="scKey" placeholder="Ej: F1, Ctrl + S, Esc" value="${escapeHtml(current.key)}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Título</label>
+      <input class="form-input" id="scTitle" placeholder="Ej: Nueva venta" value="${escapeHtml(current.title)}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      <textarea class="form-textarea" id="scDesc" placeholder="Qué hace este atajo">${escapeHtml(current.desc)}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Categoría</label>
+      <input class="form-input" id="scCategory" list="scCatList" placeholder="Ej: ventas" value="${escapeHtml(current.category)}">
+      <datalist id="scCatList">
+        ${allCategories.map(c => `<option value="${escapeHtml(c)}">`).join('')}
+      </datalist>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-accent" onclick="saveShortcut(${idx !== null ? idx : 'null'})">Guardar atajo</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+  setTimeout(() => document.getElementById('scKey')?.focus(), 100);
+}
+
+function saveShortcut(idx) {
+  const key = document.getElementById('scKey').value.trim();
+  const title = document.getElementById('scTitle').value.trim();
+  const desc = document.getElementById('scDesc').value.trim();
+  const category = document.getElementById('scCategory').value.trim().toLowerCase() || 'general';
+  if (!key || !title) {
+    alert('Completá al menos la tecla y el título.');
+    return;
+  }
+  const shortcuts = getShortcuts();
+  const entry = { key, title, desc, category };
+  if (idx !== null && idx >= 0 && idx < shortcuts.length) {
+    shortcuts[idx] = entry;
+  } else {
+    shortcuts.push(entry);
+  }
+  saveShortcuts(shortcuts);
+  closeModal();
+  renderShortcuts();
+  renderSummary();
+}
+
+function deleteShortcut(idx) {
+  if (!confirm('¿Eliminar este atajo?')) return;
+  const shortcuts = getShortcuts().filter((_, i) => i !== idx);
+  saveShortcuts(shortcuts);
+  renderShortcuts();
+  renderSummary();
+}
+
+function openProviderEditor(idx = null) {
+  const modal = document.getElementById('modal');
+  const content = document.getElementById('modalContent');
+  const providers = getProviders();
+  const data = idx !== null ? providers[idx] : null;
+  const initialDays = data ? getProviderDaysAgo(data) : 0;
+  const initialISO = data ? getProviderLastUpdate(data) : todayISO();
+  const initialPriority = data && data.priority != null ? data.priority : (data ? '' : 1);
+  const current = data || { name: '', status: 'ready' };
+
+  content.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${data ? '✏️ Editar' : '+ Nuevo'} proveedor</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input class="form-input" id="pvName" placeholder="Ej: Honda" value="${escapeHtml(current.name)}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Estado de la lista</label>
+      <select class="form-select" id="pvStatus" onchange="toggleProviderStatusFields()">
+        <option value="ready" ${current.status === 'ready' ? 'selected' : ''}>✓ Ready (lista completa)</option>
+        <option value="partial" ${current.status === 'partial' ? 'selected' : ''}>◐ Parcial (faltan items)</option>
+        <option value="upcoming" ${current.status === 'upcoming' ? 'selected' : ''}>⏳ Próximos a importar</option>
+        <option value="not-impl" ${current.status === 'not-impl' ? 'selected' : ''}>✕ No implementada</option>
+      </select>
+    </div>
+    <div class="form-group" id="pvUpdateGroup">
+      <label class="form-label">Última actualización</label>
+      <p style="color: var(--text-muted); font-size: 0.78rem; margin: 0 0 8px;">Completá <strong>cualquiera</strong> de los dos campos. El otro se recalcula automáticamente.</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div>
+          <label class="form-label" style="font-size: 0.72rem;">Fecha (dd/mm/aaaa)</label>
+          <input class="form-input" id="pvDate" type="date" value="${initialISO}" max="${todayISO()}">
+        </div>
+        <div>
+          <label class="form-label" style="font-size: 0.72rem;">Días atrás</label>
+          <input class="form-input" id="pvDays" type="number" min="0" step="1" value="${initialDays}" placeholder="0">
+        </div>
+      </div>
+      <div id="pvDateHint" style="color: var(--text-muted); font-size: 0.78rem; margin-top: 8px;"></div>
+    </div>
+    <div class="form-group" id="pvPriorityGroup" style="display: none;">
+      <label class="form-label">Prioridad de importación (tier)</label>
+      <p style="color: var(--text-muted); font-size: 0.78rem; margin: 0 0 8px;">Número entero. <strong>Menor = más prioridad</strong> (1 va primero, 2 después, etc.).</p>
+      <input class="form-input" id="pvPriority" type="number" min="1" step="1" value="${initialPriority}" placeholder="1">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-accent" onclick="saveProvider(${idx !== null ? idx : 'null'})">Guardar proveedor</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+  setTimeout(() => document.getElementById('pvName')?.focus(), 100);
+  bindProviderDateInputs();
+  toggleProviderStatusFields();
+}
+
+function toggleProviderStatusFields() {
+  const sel = document.getElementById('pvStatus');
+  const updateGroup = document.getElementById('pvUpdateGroup');
+  const priorityGroup = document.getElementById('pvPriorityGroup');
+  if (!sel || !updateGroup || !priorityGroup) return;
+  const isUpcoming = sel.value === 'upcoming';
+  updateGroup.style.display = isUpcoming ? 'none' : '';
+  priorityGroup.style.display = isUpcoming ? '' : 'none';
+}
+
+function bindProviderDateInputs() {
+  const dateInput = document.getElementById('pvDate');
+  const daysInput = document.getElementById('pvDays');
+  const hint = document.getElementById('pvDateHint');
+  if (!dateInput || !daysInput) return;
+
+  function updateHint() {
+    const iso = dateInput.value;
+    const days = parseInt(daysInput.value) || 0;
+    if (iso) {
+      const rel = days === 0 ? 'hoy' : days === 1 ? 'hace 1 día' : `hace ${days} días`;
+      hint.textContent = `📅 ${fmtDateISO(iso)} · ${rel}`;
+    } else {
+      hint.textContent = '';
+    }
+  }
+
+  dateInput.addEventListener('input', () => {
+    if (!dateInput.value) return;
+    daysInput.value = isoToDaysAgo(dateInput.value);
+    updateHint();
+  });
+
+  daysInput.addEventListener('input', () => {
+    const d = Math.max(0, parseInt(daysInput.value) || 0);
+    dateInput.value = daysAgoToISO(d);
+    updateHint();
+  });
+
+  updateHint();
+}
+
+function saveProvider(idx) {
+  const name = document.getElementById('pvName').value.trim();
+  const status = document.getElementById('pvStatus').value;
+  if (!name) {
+    alert('Completá el nombre del proveedor.');
+    return;
+  }
+  const providers = getProviders();
+  const entry = { name, status };
+  if (status === 'upcoming') {
+    const priorityInput = document.getElementById('pvPriority');
+    const priority = Math.max(1, parseInt(priorityInput && priorityInput.value) || 1);
+    entry.priority = priority;
+  } else {
+    const dateInput = document.getElementById('pvDate');
+    const daysInput = document.getElementById('pvDays');
+    let lastUpdate = dateInput && dateInput.value ? dateInput.value : null;
+    if (!lastUpdate) {
+      const d = Math.max(0, parseInt(daysInput && daysInput.value) || 0);
+      lastUpdate = daysAgoToISO(d);
+    }
+    entry.lastUpdate = lastUpdate;
+  }
+  if (idx !== null && idx >= 0 && idx < providers.length) {
+    providers[idx] = entry;
+  } else {
+    providers.push(entry);
+  }
+  saveProviders(providers);
+  closeModal();
+  renderProviders();
+  renderSummary();
+}
+
+function deleteProvider(idx) {
+  if (!confirm('¿Eliminar este proveedor?')) return;
+  const providers = getProviders().filter((_, i) => i !== idx);
+  saveProviders(providers);
+  renderProviders();
+  renderSummary();
+}
+
+function openChecklistEditor(idx = null) {
+  const modal = document.getElementById('modal');
+  const content = document.getElementById('modalContent');
+  const items = getCurrentChecklist();
+  const data = idx !== null ? items[idx] : null;
+  const current = data || { id: 'ck-' + Date.now(), text: '' };
+
+  content.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${data ? '✏️ Editar' : '+ Nueva'} tarea del checklist</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Texto de la tarea</label>
+      <textarea class="form-textarea" id="ckText" placeholder="Ej: Revisar correo electrónico">${escapeHtml(current.text)}</textarea>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-accent" onclick="saveChecklistItem('${current.id}', ${idx !== null ? idx : 'null'})">Guardar tarea</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+  setTimeout(() => document.getElementById('ckText')?.focus(), 100);
+}
+
+function saveChecklistItem(id, idx) {
+  const text = document.getElementById('ckText').value.trim();
+  if (!text) {
+    alert('Completá el texto de la tarea.');
+    return;
+  }
+  const list = getCurrentChecklist();
+  const entry = { id, text };
+  if (idx !== null && idx >= 0 && idx < list.length && list[idx].id === id) {
+    list[idx] = entry;
+  } else {
+    list.push(entry);
+  }
+  saveCustomChecklist(list);
+  closeModal();
+  renderChecklist();
+  renderSummary();
+}
+
+function deleteChecklistItem(idx) {
+  if (!confirm('¿Eliminar esta tarea del checklist?')) return;
+  const list = getCurrentChecklist().filter((_, i) => i !== idx);
+  saveCustomChecklist(list);
+  renderChecklist();
+  renderSummary();
+}
+
 function renderChecklist() {
   const c = document.getElementById('checklistContainer');
   if (!c) return;
   const items = getCurrentChecklist();
   const state = getChecklistState();
-  c.innerHTML = items.map(item => `
-    <div class="checklist-item ${state[item.id] ? 'checked' : ''}" data-id="${item.id}">
+  const edit = editMode;
+  const footer = `
+    <div class="section-header-actions">
+      ${edit ? `<button class="btn btn-accent btn-sm" onclick="openChecklistEditor()">+ Agregar tarea</button>` : ''}
+    </div>
+  `;
+  c.innerHTML = items.map((item, idx) => `
+    <div class="checklist-item ${state[item.id] ? 'checked' : ''} ${edit ? 'editable' : ''}" data-id="${item.id}">
       <div class="checklist-check">${state[item.id] ? '✓' : ''}</div>
       <div class="checklist-text">${escapeHtml(item.text)}</div>
+      ${edit ? `
+        <div class="checklist-item-actions">
+          <button class="card-edit-btn" onclick="event.stopPropagation(); openChecklistEditor(${idx})" title="Editar">✏️</button>
+          <button class="card-delete-btn" onclick="event.stopPropagation(); deleteChecklistItem(${idx})" title="Eliminar">🗑</button>
+        </div>
+      ` : ''}
     </div>
-  `).join('');
+  `).join('') + footer;
   c.querySelectorAll('.checklist-item').forEach(item => {
-    item.onclick = () => {
+    item.onclick = (e) => {
+      if (e.target.closest('.card-edit-btn, .card-delete-btn')) return;
       const id = item.dataset.id;
       const s = getChecklistState();
       s[id] = !s[id];
@@ -1279,6 +1887,74 @@ function escapeHtml(s) {
     .replace(/'/g, '&#039;');
 }
 
+function jsString(s) {
+  const str = String(s);
+  const hasSingle = str.indexOf("'") !== -1;
+  const hasDouble = str.indexOf('"') !== -1;
+  const escapeCommon = (t) => t
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+  if (hasSingle && !hasDouble) {
+    return '"' + escapeCommon(str).replace(/"/g, '\\"') + '"';
+  }
+  return "'" + escapeCommon(str).replace(/'/g, "\\'") + "'";
+}
+
+function jsSerialize(value, indent = 2, currentIndent = 0) {
+  const inner = ' '.repeat(currentIndent + indent);
+  const outer = ' '.repeat(currentIndent);
+  if (value === null) return 'null';
+  if (typeof value === 'undefined') return 'undefined';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'null';
+  if (typeof value === 'boolean') return String(value);
+  if (typeof value === 'string') return jsString(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    const items = value.map(v => inner + jsSerialize(v, indent, currentIndent + indent));
+    return '[\n' + items.join(',\n') + ',\n' + outer + ']';
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    if (keys.length === 0) return '{}';
+    const items = keys.map(k => {
+      const keyStr = /^[A-Za-z_$][\w$]*$/.test(k) ? k : jsString(k);
+      return inner + keyStr + ': ' + jsSerialize(value[k], indent, currentIndent + indent);
+    });
+    return '{\n' + items.join(',\n') + ',\n' + outer + '}';
+  }
+  return 'null';
+}
+
+function buildLiveConfigData() {
+  const cfg = window.ATUEL_CONFIG || {};
+  return {
+    shortcuts: getShortcuts(),
+    providers: getProviders(),
+    avisos: getAvisos(),
+    checklist: getCurrentChecklist(),
+    tutorials: getTutorials(),
+    branding: cfg.branding || { name: 'Atuel Motos', tagline: 'Centro de comandos diario del local' },
+    features: cfg.features || {
+      cacheBustDays: 5,
+      enableCacheBust: true,
+      enableTutorials: true,
+      enableChecklist: true,
+      enableAvisos: true,
+      enableAtajos: true,
+      enableProveedores: true,
+    },
+  };
+}
+
+function buildConfigFileText() {
+  const data = buildLiveConfigData();
+  const header = '// config.js · generado desde la intranet el ' + new Date().toLocaleString('es-AR') + '\n' +
+                 '// Pegá este contenido completo en config.js del repositorio para compartirlo.\n\n';
+  return header + 'window.ATUEL_CONFIG = ' + jsSerialize(data, 2, 0) + ';\n';
+}
+
 function toggleQuickAdd() {
   const menu = document.getElementById('quickAddMenu');
   menu.classList.toggle('hidden');
@@ -1323,7 +1999,7 @@ function init() {
   editSwitch.onchange = (e) => {
     editMode = e.target.checked;
     document.body.classList.toggle('edit-mode', editMode);
-    renderTutorials();
+    renderAllEditableSections();
   };
 
   document.getElementById('btnQuickAdd').onclick = (e) => {
@@ -1344,17 +2020,17 @@ function init() {
         editMode = true;
         document.body.classList.add('edit-mode');
         editSwitch.checked = true;
+        renderAllEditableSections();
         openTutorialEditor();
       } else if (action === 'check') {
-        navigate('checklist');
-        const text = prompt('Texto de la nueva tarea:');
-        if (text && text.trim()) {
-          const list = getCurrentChecklist();
-          list.push({ id: 'ck-' + Date.now(), text: text.trim() });
-          saveCustomChecklist(list);
-          renderChecklist();
-          renderSummary();
+        if (!editMode) {
+          editMode = true;
+          document.body.classList.add('edit-mode');
+          editSwitch.checked = true;
         }
+        navigate('checklist');
+        renderAllEditableSections();
+        openChecklistEditor();
       }
     };
   });
@@ -1369,14 +2045,13 @@ function init() {
   document.getElementById('btnAddAviso').onclick = () => openAvisoEditor();
 
   document.getElementById('btnAddCheck').onclick = () => {
-    const text = prompt('Texto de la nueva tarea:');
-    if (text && text.trim()) {
-      const list = getCurrentChecklist();
-      list.push({ id: 'ck-' + Date.now(), text: text.trim() });
-      saveCustomChecklist(list);
-      renderChecklist();
-      renderSummary();
+    if (!editMode) {
+      editMode = true;
+      document.body.classList.add('edit-mode');
+      document.getElementById('editSwitch').checked = true;
+      renderAllEditableSections();
     }
+    openChecklistEditor();
   };
 
   document.getElementById('btnResetCheck').onclick = () => {
@@ -1453,17 +2128,8 @@ function init() {
   const btnDownloadConfig = document.getElementById('btnDownloadConfig');
   if (btnDownloadConfig) {
     btnDownloadConfig.onclick = () => {
-      const data = {
-        shortcuts: SHORTCUTS,
-        providers: PROVIDERS,
-        avisos: DEFAULT_AVISOS,
-        checklist: DEFAULT_CHECKLIST,
-        tutorials: DEFAULT_TUTORIALS,
-        branding: { name: 'Atuel Motos', tagline: 'Centro de comandos diario del local' },
-        features: { cacheBustDays: 5, enableCacheBust: true, enableTutorials: true, enableChecklist: true, enableAvisos: true, enableAtajos: true, enableProveedores: true },
-      };
-      const code = 'window.ATUEL_CONFIG = ' + JSON.stringify(data, null, 2) + ';\n';
-      const blob = new Blob([code], { type: 'application/javascript' });
+      const code = buildConfigFileText();
+      const blob = new Blob([code], { type: 'application/javascript;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1480,15 +2146,24 @@ function init() {
 
 function reRenderAll() {
   renderSummary();
-  setTimeout(() => equalizeCardHeights('#summaryGrid'), 50);
   renderShortcuts();
   renderProviders();
-  setTimeout(() => equalizeCardHeights('#providersContainer'), 50);
   renderTopicChips();
   renderTutorials();
-  setTimeout(() => equalizeCardHeights('#tutorialsContainer'), 50);
   renderAvisos();
   renderChecklist();
+  requestAnimationFrame(() => {
+    equalizeCardHeights('#summaryGrid');
+    document.querySelectorAll('#providersContainer .cards-grid').forEach((grid, i) => {
+      grid.dataset.equalize = `providers-grid-${i}`;
+      const sel = `#providersContainer .cards-grid[data-equalize="providers-grid-${i}"]`;
+      equalizeCardHeights(sel);
+      setupEqualizeObserver(sel);
+    });
+    equalizeCardHeights('#tutorialsContainer');
+    setupEqualizeObserver('#summaryGrid');
+    setupEqualizeObserver('#tutorialsContainer');
+  });
 }
 
 function updateClock() {
