@@ -155,11 +155,33 @@ const SECTION_DEFAULTS = {
   configuracion: { enabled: true, label: 'Configuración', icon: '⚙️', alwaysOn: true },
 };
 
+const SECTION_FEATURE_KEY = {
+  atajos: 'enableAtajos',
+  proveedores: 'enableProveedores',
+  tutoriales: 'enableTutorials',
+  avisos: 'enableAvisos',
+  checklist: 'enableChecklist',
+};
+
+function getSectionConfigDefault(key) {
+  const def = SECTION_DEFAULTS[key];
+  if (def.alwaysOn) return true;
+  const featKey = SECTION_FEATURE_KEY[key];
+  const features = window.ATUEL_CONFIG && window.ATUEL_CONFIG.features;
+  if (features && featKey && typeof features[featKey] === 'boolean') return features[featKey];
+  return def.enabled;
+}
+
 function getSections() {
   const saved = STORAGE.get('atuel_sections', null) || {};
   const merged = {};
   for (const key in SECTION_DEFAULTS) {
-    merged[key] = { ...SECTION_DEFAULTS[key], enabled: saved[key]?.enabled !== undefined ? saved[key].enabled : SECTION_DEFAULTS[key].enabled };
+    const def = SECTION_DEFAULTS[key];
+    const cfgDefault = getSectionConfigDefault(key);
+    merged[key] = {
+      ...def,
+      enabled: saved[key]?.enabled !== undefined ? saved[key].enabled : cfgDefault,
+    };
   }
   return merged;
 }
@@ -282,6 +304,7 @@ function reloadExternalConfig(preserveLocal = false) {
     localStorage.removeItem('atuel_custom_checklist');
     localStorage.removeItem('atuel_shortcuts');
     localStorage.removeItem('atuel_providers');
+    localStorage.removeItem('atuel_sections');
   }
   const oldScript = document.querySelector('script[data-atuel-config]');
   if (oldScript) oldScript.remove();
@@ -515,7 +538,14 @@ function renderSummary() {
   const cards = [];
 
   if (isSectionEnabled('proveedores')) {
-    const providerTags = providers.map(p => {
+    const sortedForSummary = [...providers].sort((a, b) => {
+      const oa = PROVIDER_STATUS_MAP[a.status]?.order ?? 99;
+      const ob = PROVIDER_STATUS_MAP[b.status]?.order ?? 99;
+      if (oa !== ob) return oa - ob;
+      if (a.status === 'upcoming') return getProviderPriority(a) - getProviderPriority(b);
+      return getProviderDaysAgo(a) - getProviderDaysAgo(b);
+    });
+    const providerTags = sortedForSummary.map(p => {
       const meta = PROVIDER_STATUS_MAP[p.status] || PROVIDER_STATUS_MAP['ready'];
       const cls = p.status === 'ready' ? 'success'
                 : p.status === 'partial' ? 'warning'
@@ -524,10 +554,13 @@ function renderSummary() {
       if (p.status === 'upcoming') {
         const pr = getProviderPriority(p);
         const prText = pr === Number.MAX_SAFE_INTEGER ? '—' : `#${pr}`;
-        return `<span class="summary-tag ${cls}">${meta.icon} ${escapeHtml(p.name)} · ${prText}</span>`;
+        return `<span class="summary-tag ${cls}" title="Próximo a importar · prioridad ${prText}">${meta.icon} ${escapeHtml(p.name)} · ${prText}<span class="age-dot accent"></span></span>`;
       }
-      const dateStr = fmtDate(dateFromDaysAgo(getProviderDaysAgo(p)));
-      return `<span class="summary-tag ${cls}">${meta.icon} ${escapeHtml(p.name)} · ${dateStr}</span>`;
+      const days = getProviderDaysAgo(p);
+      const dateStr = fmtDate(dateFromDaysAgo(days));
+      const dotColor = indicatorColor(days);
+      const dotTitle = days === 0 ? 'actualizado hoy' : days === 1 ? 'hace 1 día' : `hace ${days} días`;
+      return `<span class="summary-tag ${cls}" title="${dotTitle}">${meta.icon} ${escapeHtml(p.name)} · ${dateStr}<span class="age-dot ${dotColor}"></span></span>`;
     }).join('');
     const totalActive = providers.length - upcomingProviders;
     const summaryMsg = staleProviders > 0
@@ -1929,6 +1962,17 @@ function jsSerialize(value, indent = 2, currentIndent = 0) {
 
 function buildLiveConfigData() {
   const cfg = window.ATUEL_CONFIG || {};
+  const baseFeatures = cfg.features || {};
+  const sections = getSections();
+  const features = {
+    cacheBustDays: typeof baseFeatures.cacheBustDays === 'number' ? baseFeatures.cacheBustDays : 5,
+    enableCacheBust: typeof baseFeatures.enableCacheBust === 'boolean' ? baseFeatures.enableCacheBust : true,
+    enableAtajos: !!sections.atajos.enabled,
+    enableProveedores: !!sections.proveedores.enabled,
+    enableTutorials: !!sections.tutoriales.enabled,
+    enableAvisos: !!sections.avisos.enabled,
+    enableChecklist: !!sections.checklist.enabled,
+  };
   return {
     shortcuts: getShortcuts(),
     providers: getProviders(),
@@ -1936,15 +1980,7 @@ function buildLiveConfigData() {
     checklist: getCurrentChecklist(),
     tutorials: getTutorials(),
     branding: cfg.branding || { name: 'Atuel Motos', tagline: 'Centro de comandos diario del local' },
-    features: cfg.features || {
-      cacheBustDays: 5,
-      enableCacheBust: true,
-      enableTutorials: true,
-      enableChecklist: true,
-      enableAvisos: true,
-      enableAtajos: true,
-      enableProveedores: true,
-    },
+    features,
   };
 }
 
@@ -1975,6 +2011,9 @@ function init() {
   });
 
   document.getElementById('btnToggleTheme').onclick = toggleTheme;
+
+  const btnHeaderSettings = document.getElementById('btnHeaderSettings');
+  if (btnHeaderSettings) btnHeaderSettings.onclick = () => navigate('configuracion');
 
   const themeSwitch = document.getElementById('themeSwitch');
   themeSwitch.checked = currentTheme === 'dark';

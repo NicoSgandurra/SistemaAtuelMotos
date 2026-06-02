@@ -674,6 +674,21 @@ body.edit-mode #btnQuickAdd {
   color: var(--text-muted);
 }
 
+.age-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--bg-card);
+}
+
+.age-dot.green  { background: var(--success); }
+.age-dot.yellow { background: var(--warning); }
+.age-dot.red    { background: var(--danger); }
+.age-dot.accent { background: var(--accent); }
+
 .summary-card-h-arrow {
   color: var(--text-muted);
   font-size: 20px;
@@ -2168,10 +2183,14 @@ body.edit-mode #btnQuickAdd {
 
   .header-left {
     font-size: 0.95rem;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .header-left span {
-    display: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .btn-primary span:last-child {
