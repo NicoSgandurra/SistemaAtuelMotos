@@ -205,9 +205,9 @@ window.ATUEL_CONFIG = {
   features: {
     cacheBustDays: 5,
     enableCacheBust: true,
-    enableTutorials: true,
-    enableChecklist: true,
-    enableAvisos: true,
+    enableTutorials: false,
+    enableChecklist: false,
+    enableAvisos: false,
     enableAtajos: true,
     enableProveedores: true,
   },
