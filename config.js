@@ -54,7 +54,7 @@ window.ATUEL_CONFIG = {
     {
       name: 'SERVICOM',
       status: 'ready',
-      lastUpdate: '2026-05-21',
+      lastUpdate: '2026-06-02',
     },
     {
       name: 'SAMURAI WARRIORS',
