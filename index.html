@@ -1,17 +1,21 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>Atuel Motos · Intranet</title>
+  <title>Atuel Motos · Sistema</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
   <header class="header">
@@ -94,7 +98,8 @@
   <main class="main">
 
     <section id="inicio" class="section">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
         <h1 class="section-title" style="margin: 0;">Resumen del día</h1>
         <div class="hero-time" id="clock" style="margin: 0;">—</div>
       </div>
@@ -115,7 +120,8 @@
 
     <section id="tutoriales" class="section hidden">
       <h1 class="section-title">📚 Tutoriales</h1>
-      <p class="section-subtitle">Guías paso a paso para usar el sistema. Filtrá por tema para encontrar lo que necesitás.</p>
+      <p class="section-subtitle">Guías paso a paso para usar el sistema. Filtrá por tema para encontrar lo que
+        necesitás.</p>
       <div id="editBannerContainer"></div>
       <div class="topic-chips" id="topicChips"></div>
       <div class="cards-grid" id="tutorialsContainer"></div>
@@ -149,7 +155,8 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-title">Tema oscuro</div>
-            <div class="setting-desc">Activa el modo oscuro. Si lo desactivás, usá el modo claro (rosa pastel o blanco Vercel según el estilo).</div>
+            <div class="setting-desc">Activa el modo oscuro. Si lo desactivás, usá el modo claro (rosa pastel o blanco
+              Vercel según el estilo).</div>
           </div>
           <label class="switch">
             <input type="checkbox" id="themeSwitch" checked>
@@ -159,7 +166,8 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-title">VercelTheme</div>
-            <div class="setting-desc">Estilo minimalista blanco/negro estilo Vercel, tanto para el modo claro como oscuro. Desactivado = estilo Cozy (rosa/lila).</div>
+            <div class="setting-desc">Estilo minimalista blanco/negro estilo Vercel, tanto para el modo claro como
+              oscuro. Desactivado = estilo Cozy (rosa/lila).</div>
           </div>
           <label class="switch">
             <input type="checkbox" id="styleSwitch">
@@ -169,7 +177,8 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-title">Recarga forzada cada 5 días</div>
-            <div class="setting-desc">Equivale a hacer <code>Ctrl + Shift + R</code>. Asegura que veas siempre la última versión y no queden datos viejos del localStorage.</div>
+            <div class="setting-desc">Equivale a hacer <code>Ctrl + Shift + R</code>. Asegura que veas siempre la última
+              versión y no queden datos viejos del localStorage.</div>
           </div>
           <label class="switch">
             <input type="checkbox" id="reloadSwitch" checked>
@@ -180,7 +189,10 @@
 
       <div class="card" style="margin-bottom: 20px;">
         <h3 style="margin-bottom: 4px; font-size: 1.05rem;">Configuración externa (compartida)</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">El archivo <code>config.js</code> define los datos compartidos (atajos, proveedores, avisos, checklist, tutoriales). El botón <strong>Exportar config.js</strong> genera un archivo con los datos actuales (incluyendo lo editado desde la web) listo para pegar en el repositorio.</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">El archivo <code>config.js</code>
+          define los datos compartidos (atajos, proveedores, avisos, checklist, tutoriales). El botón <strong>Exportar
+            config.js</strong> genera un archivo con los datos actuales (incluyendo lo editado desde la web) listo para
+          pegar en el repositorio.</p>
         <div class="btn-group">
           <button class="btn btn-accent" id="btnReloadConfig">🔄 Recargar config.js</button>
           <button class="btn btn-secondary" id="btnViewConfig">👁 Ver config actual</button>
@@ -190,11 +202,13 @@
 
       <div class="card" style="margin-bottom: 20px;">
         <h3 style="margin-bottom: 4px; font-size: 1.05rem;">Tutoriales</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">Activá el modo edición para crear tutoriales desde la web. Cada tutorial puede tener varios temas y partes.</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">Activá el modo edición para crear
+          tutoriales desde la web. Cada tutorial puede tener varios temas y partes.</p>
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-title">Modo edición</div>
-            <div class="setting-desc">Muestra botones para editar o eliminar tutoriales directamente desde las tarjetas.</div>
+            <div class="setting-desc">Muestra botones para editar o eliminar tutoriales directamente desde las tarjetas.
+            </div>
           </div>
           <label class="switch">
             <input type="checkbox" id="editSwitch">
@@ -210,7 +224,9 @@
 
       <div class="card">
         <h3 style="margin-bottom: 4px; font-size: 1.05rem;">Secciones visibles</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">Activá o desactivá secciones temporalmente. Las que ocultes desaparecen del menú lateral y la barra inferior hasta que las vuelvas a activar.</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 12px;">Activá o desactivá secciones
+          temporalmente. Las que ocultes desaparecen del menú lateral y la barra inferior hasta que las vuelvas a
+          activar.</p>
         <div id="sectionsToggles"></div>
       </div>
     </section>
@@ -224,4 +240,5 @@
   <script src="config.js"></script>
   <script src="script.js"></script>
 </body>
+
 </html>
