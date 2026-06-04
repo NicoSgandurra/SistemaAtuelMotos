@@ -83,8 +83,8 @@ window.ATUEL_CONFIG = {
     },
     {
       name: 'MERCOMAX',
-      status: 'partial',
-      lastUpdate: '2026-05-07',
+      status: 'ready',
+      lastUpdate: '2026-06-04',
     },
     {
       name: 'INTERCAP',
@@ -126,7 +126,7 @@ window.ATUEL_CONFIG = {
   },
 
   features: {
-    cacheBustDays: 5,
+    cacheBustDays: 1,
     enableCacheBust: true,
     enableTutorials: false,
     enableChecklist: false,
